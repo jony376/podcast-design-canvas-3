@@ -151,6 +151,15 @@ body {
 }
 .bucket-remove:hover { color: var(--ink); border-color: var(--muted); }
 
+/* Per-speaker social link + derived-name hint */
+.bucket-social { display: flex; align-items: center; gap: 8px; flex-basis: 100%; margin-top: 6px; }
+.bucket-social span { min-width: 122px; color: var(--muted); font-size: 13px; }
+.bucket-social input[type="url"] {
+  flex: 1; min-width: 0; background: var(--panel, #0e1116); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px;
+}
+.bucket-derived { flex-basis: 100%; color: var(--ok); font-size: 12px; min-height: 14px; padding-left: 130px; }
+
 /* Presets ----------------------------------------------------------------- */
 .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 @media (max-width: 520px) { .presets { grid-template-columns: 1fr; } }

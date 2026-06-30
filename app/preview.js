@@ -76,7 +76,11 @@
 
         const tag = document.createElement("span");
         tag.className = "speaker-tag";
-        tag.textContent = PDC.presets.BUCKET_LABELS[bucket];
+        tag.dataset.speakerTag = bucket;
+        // Show the name derived from the speaker's social link when one is set,
+        // otherwise the default bucket label — so the preview visibly reflects
+        // the per-speaker social context entered during setup.
+        tag.textContent = PDC.episode.speakerName(episode, bucket);
         frame.appendChild(tag);
 
         stageEl.appendChild(frame);

@@ -13,6 +13,9 @@
       // bucket -> { name, size, type } media descriptor (no bytes here; the UI
       // keeps the live <video> element + object URL alongside this model).
       media: {},
+      // bucket -> social/profile URL string entered during setup, kept per
+      // speaker so later steps can derive names/topics/references from it.
+      socialLinks: {},
       presetId: DEFAULT_PRESET_ID,
     };
   }
@@ -25,9 +28,48 @@
     return episode;
   }
 
+  // Removing a speaker drops that bucket's media AND its own social link, but
+  // never touches other speakers' links (so removing one speaker can't lose the
+  // social context attached to the others).
   function clearMedia(episode, bucket) {
     delete episode.media[bucket];
+    if (episode.socialLinks) delete episode.socialLinks[bucket];
     return episode;
+  }
+
+  // Store (or clear, when blank) the social/profile link for one speaker bucket.
+  function setSocialLink(episode, bucket, url) {
+    if (!SPEAKER_BUCKETS.includes(bucket)) return episode;
+    if (!episode.socialLinks) episode.socialLinks = {};
+    const trimmed = (url || "").trim();
+    if (trimmed) episode.socialLinks[bucket] = trimmed;
+    else delete episode.socialLinks[bucket];
+    return episode;
+  }
+
+  function getSocialLink(episode, bucket) {
+    return (episode.socialLinks && episode.socialLinks[bucket]) || "";
+  }
+
+  // Pull a readable handle out of a social/profile URL (last path segment, or a
+  // bare @handle, or the domain). Pure string work — no network, no scraping.
+  function deriveHandle(raw) {
+    let s = String(raw || "").trim();
+    if (!s) return "";
+    const at = s.match(/^@([A-Za-z0-9_.\-]+)$/);
+    if (at) return at[1];
+    s = s.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(/[?#]/)[0];
+    const parts = s.split("/").filter(Boolean);
+    const last = parts.length > 1 ? parts[parts.length - 1] : "";
+    const handle = (last || "").replace(/^@/, "");
+    return handle;
+  }
+
+  // The name to display for a speaker: derived from their social link when one
+  // is set, otherwise the default bucket label (Host / Guest 1 / Guest 2).
+  function speakerName(episode, bucket) {
+    const fallback = (PDC.presets.BUCKET_LABELS && PDC.presets.BUCKET_LABELS[bucket]) || bucket;
+    return deriveHandle(getSocialLink(episode, bucket)) || fallback;
   }
 
   // Buckets that currently hold media, in canonical speaker order.
@@ -66,6 +108,10 @@
     clearMedia,
     assignedBuckets,
     setPreset,
+    setSocialLink,
+    getSocialLink,
+    deriveHandle,
+    speakerName,
     canCompose,
     readinessReason,
   };

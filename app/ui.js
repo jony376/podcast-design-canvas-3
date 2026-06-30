@@ -12,7 +12,7 @@
 (function () {
   const PDC = window.PDC;
   const { PRESETS, BUCKET_LABELS, SPEAKER_BUCKETS } = PDC.presets;
-  const { createEpisode, assignMedia, clearMedia, assignedBuckets, setPreset, canCompose, readinessReason } = PDC.episode;
+  const { createEpisode, assignMedia, clearMedia, assignedBuckets, setPreset, setSocialLink, speakerName, canCompose, readinessReason } = PDC.episode;
 
   const $ = (id) => document.getElementById(id);
 
@@ -139,6 +139,36 @@
       });
       upload.append(uploadText, input);
       row.appendChild(upload);
+
+      // Social/profile link for this speaker, with a live "shown as" hint that
+      // reflects the name derived from the link. Stored per bucket in episode
+      // state so it survives preset switches and removing a different speaker.
+      const social = document.createElement("label");
+      social.className = "bucket-social";
+      const socialText = document.createElement("span");
+      socialText.textContent = `${BUCKET_LABELS[bucket]} social link`;
+      const linkInput = document.createElement("input");
+      linkInput.type = "url";
+      linkInput.placeholder = "https://x.com/handle";
+      linkInput.dataset.linkBucket = bucket;
+      linkInput.value = (episode.socialLinks && episode.socialLinks[bucket]) || "";
+      linkInput.setAttribute("aria-label", `${BUCKET_LABELS[bucket]} social link`);
+      const derived = document.createElement("span");
+      derived.className = "bucket-derived";
+      derived.dataset.derived = bucket;
+      const updateDerived = () => {
+        derived.textContent = (episode.socialLinks && episode.socialLinks[bucket])
+          ? `Shown as: ${speakerName(episode, bucket)}`
+          : "";
+      };
+      updateDerived();
+      linkInput.addEventListener("input", (e) => {
+        setSocialLink(episode, bucket, e.target.value);
+        updateDerived();
+        if (canCompose(episode)) preview.render(episode); // refresh name tags live
+      });
+      social.append(socialText, linkInput);
+      row.append(social, derived);
 
       if (m) {
         const remove = document.createElement("button");
