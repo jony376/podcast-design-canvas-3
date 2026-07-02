@@ -21,6 +21,9 @@
       // timeline — managed by app/moments.js, kept here so they belong to the
       // episode and survive preset/template switches.
       moments: [],
+      // User-imported WebVTT captions — managed by app/captions.js, kept on the
+      // episode so they survive preset and template switches.
+      captions: null,
       audioQuality: {
         leveling: "balanced",
         clarity: "balanced",

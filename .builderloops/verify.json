@@ -11,6 +11,7 @@
     { "name": "visual-moments", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-visual-moments.mjs" },
     { "name": "broll-moments", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-broll-moments.mjs" },
     { "name": "template-persistence", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-template-persistence.mjs" },
-    { "name": "template-apply", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-template-apply.mjs" }
+    { "name": "template-apply", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-template-apply.mjs" },
+    { "name": "rendered-captions", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-captions.mjs" }
   ]
 }
