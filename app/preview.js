@@ -20,14 +20,15 @@
     let referenceTime = 0;
 
     function syncReferenceTime() {
+      // While paused (scrubbing or holding a frame for review), keep the explicit
+      // referenceTime from seekTo — do not overwrite it with stale video clocks.
+      if (!playing) return referenceTime;
       const times = Object.values(videos)
         .map((video) => video.currentTime)
-        .filter((time) => Number.isFinite(time))
-        .filter((time) => time > 0);
+        .filter((time) => Number.isFinite(time) && time >= 0);
       if (!times.length) return referenceTime;
-      const next = Math.min(...times);
-      referenceTime = next;
-      return next;
+      referenceTime = Math.min(...times);
+      return referenceTime;
     }
 
     function seekAll(time) {

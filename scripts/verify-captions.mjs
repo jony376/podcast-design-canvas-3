@@ -268,7 +268,7 @@ const browserExpression = `
     await waitFor(() => !scrub.disabled && Number(scrub.max) >= 7, "scrub bar should span the episode", 120);
     scrub.value = String(t);
     scrub.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(120);
+    await sleep(200);
   }
 
   pausePreview();

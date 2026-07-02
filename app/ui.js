@@ -40,7 +40,17 @@
 
   function afterMediaChange() {
     preview.render(episode);
-    if (canCompose(episode)) preview.play();
+    if (canCompose(episode)) {
+      if (PDC.captions && PDC.captions.hasCaptions(episode)) {
+        const cues = PDC.captions.listCues(episode);
+        const first = cues[0];
+        const t = Math.max(0, Math.min(first.end - 0.05, first.start + 0.05));
+        preview.pause();
+        preview.seekTo(t);
+      } else {
+        preview.play();
+      }
+    }
     refresh();
   }
 
@@ -218,6 +228,7 @@
   }
   scrubEl.addEventListener("input", function () {
     const t = Number(scrubEl.value);
+    preview.pause();
     preview.seekTo(t);
     scrubTimeEl.textContent = M.formatTime(t);
   });
@@ -256,7 +267,10 @@
     if (canCompose(episode)) {
       const first = parsed.cues[0];
       const t = Math.max(0, Math.min(first.end - 0.05, first.start + 0.05));
+      preview.pause();
       preview.seekTo(t);
+      scrubEl.value = String(t);
+      scrubTimeEl.textContent = M.formatTime(t);
     } else {
       preview.drawFrame();
     }
@@ -358,10 +372,23 @@
 
   // Apply any layout (preset id or saved template id) and sync selection state.
   function applyLayout(id) {
+    const holdTime = preview.getTime();
     setPreset(episode, id);
     markSelected(id);
     preview.render(episode);
-    if (canCompose(episode)) preview.play();
+    if (canCompose(episode)) {
+      if (C.hasCaptions(episode)) {
+        const cues = C.listCues(episode);
+        const sample = Math.max(0, Math.min(cues[0].end - 0.05, cues[0].start + 0.05));
+        const t = holdTime > 0 ? holdTime : sample;
+        preview.pause();
+        preview.seekTo(t);
+        scrubEl.value = String(t);
+        scrubTimeEl.textContent = M.formatTime(t);
+      } else {
+        preview.play();
+      }
+    }
     refresh();
   }
 
