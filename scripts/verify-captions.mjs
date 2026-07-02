@@ -177,7 +177,7 @@ const browserExpression = `
     const dt = new DataTransfer();
     dt.items.add(file);
     input.files = dt.files;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    // Playwright setInputFiles fires change (not a synthetic input event).
     input.dispatchEvent(new Event("change", { bubbles: true }));
   };
   const typeInto = (input, v) => {
@@ -214,7 +214,7 @@ const browserExpression = `
     return !text && s.dark < 0.1 && s.light < 0.01;
   };
 
-  await waitFor(() => window.PDC && window.PDC.captions && document.querySelector("#caption-file")
+  await waitFor(() => window.PDC && window.PDC.captions && document.querySelector("[data-file-caption]")
     && document.querySelector("#export") && document.querySelector("#scrub"),
     "shipped caption/scrub/export controls should exist");
 
@@ -237,7 +237,9 @@ const browserExpression = `
   document.querySelector('[data-preset="split"]').click();
   await waitFor(() => stage().dataset.preset === "split", "Split preset should be active");
 
-  uploadTo(document.querySelector("#caption-file"), makeVtt());
+  uploadTo(document.querySelector("[data-file-caption]"), makeVtt());
+  await waitFor(() => /Reading episode\\.vtt/.test(document.querySelector("#caption-status").textContent || ""),
+    "caption import should show a reading status immediately");
   await waitFor(() => document.querySelectorAll("#caption-list li").length === 2, "two caption cues should be listed");
   const listText = document.querySelector("#caption-list").textContent;
   assert(listText.includes("CAP ONE TEXT") && listText.includes("CAP TWO TEXT"), "caption list should show both cues");

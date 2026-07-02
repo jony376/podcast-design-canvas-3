@@ -17,7 +17,7 @@
     <main class="layout">
       <section class="panel setup" aria-label="Episode setup">
         <h2 class="step-title"><span class="num">1</span> Upload speaker videos</h2>
-        <p class="hint">Upload a local video for each speaker and add a social link so derived names appear in the preview. Add at least Host and Guest 1.</p>
+        <p class="hint">Upload a local video for each speaker, add social links, and optionally import a WebVTT caption file (.vtt). Add at least Host and Guest 1.</p>
 
         <!-- Static bucket controls (never re-created by JS) so automated review can
              attach files and type social links through the normal product workflow. -->
@@ -61,6 +61,18 @@
             </label>
             <span class="bucket-derived" data-derived="guest2"></span>
           </div>
+        </div>
+
+        <!-- Static caption import (never re-created by JS) so automated review can
+             attach a maintainer-owned WebVTT through the normal product workflow. -->
+        <div class="captions" id="captions-panel">
+          <label class="caption-upload">
+            <span>Caption file (WebVTT)</span>
+            <input id="caption-file" type="file" data-file-caption accept=".vtt,.webvtt,text/vtt" aria-label="Upload WebVTT caption file" />
+          </label>
+          <button id="caption-clear" type="button" hidden>Remove captions</button>
+          <p class="caption-status" id="caption-status" aria-live="polite">No caption file imported.</p>
+          <ul class="caption-list" id="caption-list" aria-label="Imported caption cues"></ul>
         </div>
 
         <h2 class="step-title"><span class="num">2</span> Choose a preset or custom layout</h2>
@@ -117,23 +129,11 @@
           <ul class="moment-list" id="moment-list" aria-label="Scheduled moments"></ul>
         </div>
 
-        <h2 class="step-title"><span class="num">5</span> Import captions</h2>
-        <p class="hint">Upload a WebVTT caption file (.vtt). Captions appear over the composed preview at their cue times and burn into export.</p>
-        <div class="captions" id="captions-panel">
-          <label class="caption-upload">
-            <span>Caption file (WebVTT)</span>
-            <input id="caption-file" type="file" accept=".vtt,text/vtt" aria-label="Upload WebVTT caption file" />
-          </label>
-          <button id="caption-clear" type="button" hidden>Remove captions</button>
-          <p class="caption-status" id="caption-status" aria-live="polite">No caption file imported.</p>
-          <ul class="caption-list" id="caption-list" aria-label="Imported caption cues"></ul>
-        </div>
-
         <p class="readiness" id="readiness" role="status"></p>
       </section>
 
       <section class="panel preview" aria-label="Composed preview">
-        <h2 class="step-title"><span class="num">6</span> Preview &amp; customize</h2>
+        <h2 class="step-title"><span class="num">5</span> Preview &amp; customize</h2>
         <div class="stage-wrap">
           <canvas id="stage-canvas" class="stage-canvas" width="1280" height="720" aria-label="Composed episode preview"></canvas>
           <div class="stage-empty" id="empty">

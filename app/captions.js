@@ -62,6 +62,8 @@
         i = skipMetadataBlock(lines, i);
         continue;
       }
+      // Skip WEBVTT header metadata (Kind:, Language:, etc.) before the first cue.
+      if (/^[\w-]+:\s/.test(line)) continue;
 
       let timingLine = line;
       if (!timingLine.includes("-->")) {

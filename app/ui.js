@@ -249,23 +249,8 @@
       : "No caption file imported.";
     renderCaptionList();
   }
-  async function ingestCaptionFile(file) {
-    if (!file) return;
-    let text;
-    try {
-      text = await file.text();
-    } catch (error) {
-      $("caption-status").textContent = "Could not read the caption file.";
-      $("caption-file").value = "";
-      return;
-    }
-    const parsed = C.parseWebVTT(text);
-    if (!parsed.ok) {
-      $("caption-status").textContent = parsed.error;
-      $("caption-file").value = "";
-      return;
-    }
-    C.setCaptions(episode, file.name, parsed.cues);
+  function afterCaptionImport(parsed, fileName) {
+    C.setCaptions(episode, fileName, parsed.cues);
     syncCaptionUi();
     preview.render(episode);
     if (canCompose(episode)) {
@@ -277,14 +262,30 @@
     }
     refresh();
   }
+  function ingestCaptionFile(file) {
+    if (!file) return;
+    $("caption-status").textContent = "Reading " + file.name + "...";
+    const reader = new FileReader();
+    reader.onload = function () {
+      const parsed = C.parseWebVTT(reader.result);
+      if (!parsed.ok) {
+        $("caption-status").textContent = parsed.error;
+        return;
+      }
+      afterCaptionImport(parsed, file.name);
+      $("caption-file").value = "";
+    };
+    reader.onerror = function () {
+      $("caption-status").textContent = "Could not read the caption file.";
+    };
+    reader.readAsText(file);
+  }
   function onCaptionFileInput() {
     const file = $("caption-file").files && $("caption-file").files[0];
     if (!file) return;
     ingestCaptionFile(file);
-    $("caption-file").value = "";
   }
   $("caption-file").addEventListener("change", onCaptionFileInput);
-  $("caption-file").addEventListener("input", onCaptionFileInput);
   $("caption-clear").addEventListener("click", function () {
     C.clearCaptions(episode);
     $("caption-file").value = "";

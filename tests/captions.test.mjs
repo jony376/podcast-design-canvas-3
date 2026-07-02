@@ -60,6 +60,13 @@ test("parseWebVTT accepts optional cue identifiers", () => {
   assert.equal(parsed.cues[0].text, "Identified cue");
 });
 
+test("parseWebVTT skips WEBVTT header metadata before cues", () => {
+  const vtt = "WEBVTT\n\nKind: captions\nLanguage: en\n\n00:00:01.000 --> 00:00:04.000\nMeta cue\n";
+  const parsed = C.parseWebVTT(vtt);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.cues[0].text, "Meta cue");
+});
+
 test("parseWebVTT rejects files without a WEBVTT header or cues", () => {
   assert.equal(C.parseWebVTT("not a caption file").ok, false);
   assert.equal(C.parseWebVTT("WEBVTT\n\nNOTE\nnothing timed here").ok, false);
