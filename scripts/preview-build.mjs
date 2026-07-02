@@ -14,6 +14,8 @@ const required = [
   "index.html",
   "app/presets.js",
   "app/episode.js",
+  "app/moments.js",
+  "app/moment-images.js",
   "app/preview.js",
   "app/ui.js",
   "app/styles.css",
@@ -27,7 +29,7 @@ if (missing.length) {
 // 2. index.html must load the classic scripts in dependency order (not ES
 //    modules — they break over file://) and reference the stylesheet.
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const mustReference = ["app/presets.js", "app/episode.js", "app/preview.js", "app/ui.js", "app/styles.css"];
+const mustReference = ["app/presets.js", "app/episode.js", "app/moments.js", "app/moment-images.js", "app/preview.js", "app/ui.js", "app/styles.css"];
 const notReferenced = mustReference.filter((r) => !html.includes(r));
 if (notReferenced.length) {
   console.error("preview-build: index.html does not reference:\n  " + notReferenced.join("\n  "));
@@ -39,6 +41,10 @@ if (!html.includes("stage-canvas")) {
 }
 if (!html.includes('data-file-bucket="host"')) {
   console.error("preview-build: index.html must declare static speaker upload inputs");
+  process.exit(1);
+}
+if (!html.includes('id="moment-image"')) {
+  console.error("preview-build: index.html must declare the b-roll PNG upload input");
   process.exit(1);
 }
 if (/type=["']module["']/.test(html)) {

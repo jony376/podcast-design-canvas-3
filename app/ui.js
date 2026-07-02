@@ -89,10 +89,22 @@
   // controls. Moments live on the episode model, so they survive preset and
   // template switches; the preview draws whichever are active each frame.
   const M = PDC.moments;
+  let preparedMomentImage = null;
   function showMomentError(message) {
     const el = $("moment-error");
     el.textContent = message || "";
     el.hidden = !message;
+  }
+  function setMomentImageStatus(message) {
+    $("moment-image-status").textContent = message || "";
+  }
+  function clearPreparedMomentImage() {
+    if (preparedMomentImage) {
+      PDC.momentImages.releasePrepared(preparedMomentImage);
+      preparedMomentImage = null;
+    }
+    $("moment-image").value = "";
+    setMomentImageStatus("");
   }
   function renderMomentList() {
     const list = $("moment-list");
@@ -103,10 +115,10 @@
       li.dataset.momentType = m.type;
       const kind = document.createElement("span");
       kind.className = "moment-kind " + m.type;
-      kind.textContent = m.type === "title" ? "Title" : "Callout";
+      kind.textContent = m.type === "title" ? "Title" : (m.type === "image" ? "B-roll" : "Callout");
       const text = document.createElement("span");
       text.className = "moment-text";
-      text.textContent = m.text;
+      text.textContent = m.type === "image" ? m.imageName : m.text;
       const range = document.createElement("span");
       range.className = "moment-range";
       range.textContent = M.formatTime(m.start) + "–" + M.formatTime(m.end);
@@ -114,8 +126,9 @@
       remove.type = "button";
       remove.className = "moment-remove";
       remove.textContent = "Remove";
-      remove.setAttribute("aria-label", "Remove " + m.type + " moment " + m.text);
+      remove.setAttribute("aria-label", "Remove " + m.type + " moment " + (m.text || m.imageName));
       remove.addEventListener("click", function () {
+        if (m.type === "image") PDC.momentImages.release(m.id);
         M.removeMoment(episode, m.id);
         renderMomentList();
         preview.drawFrame();
@@ -124,10 +137,32 @@
       list.appendChild(li);
     });
   }
-  $("moment-add").addEventListener("click", function () {
+  $("moment-image").addEventListener("change", function () {
+    const file = $("moment-image").files && $("moment-image").files[0];
+    if (!file) {
+      clearPreparedMomentImage();
+      return;
+    }
+    if (preparedMomentImage) PDC.momentImages.releasePrepared(preparedMomentImage);
+    preparedMomentImage = PDC.momentImages.prepare(file);
+    if (!preparedMomentImage.ok) {
+      const message = preparedMomentImage.error;
+      preparedMomentImage = null;
+      $("moment-image").value = "";
+      showMomentError(message);
+      setMomentImageStatus("");
+      return;
+    }
+    $("moment-type").value = "image";
+    $("moment-text").value = "";
+    setMomentImageStatus("Selected PNG: " + preparedMomentImage.name);
+    showMomentError("");
+  });
+  $("moment-add").addEventListener("click", async function () {
     const fields = {
       type: $("moment-type").value,
       text: $("moment-text").value,
+      imageName: preparedMomentImage && preparedMomentImage.name,
       start: $("moment-start").value,
       end: $("moment-end").value,
     };
@@ -136,13 +171,32 @@
       showMomentError(problem);
       return;
     }
-    M.addMoment(episode, fields);
+    if (fields.type === "image") {
+      try {
+        await preparedMomentImage.ready;
+      } catch (error) {
+        showMomentError(error.message || "The selected PNG could not be decoded.");
+        return;
+      }
+    }
+    const moment = M.addMoment(episode, fields);
+    if (moment && moment.type === "image") {
+      PDC.momentImages.register(moment.id, preparedMomentImage);
+    }
+    preparedMomentImage = null;
     showMomentError("");
     $("moment-text").value = "";
+    $("moment-image").value = "";
+    setMomentImageStatus("");
     $("moment-start").value = "";
     $("moment-end").value = "";
     renderMomentList();
-    preview.drawFrame();
+    if (moment && moment.type === "image") {
+      const t = Math.min(moment.end - 0.05, moment.start + Math.min(0.5, Math.max(0.1, (moment.end - moment.start) / 2)));
+      preview.seekTo(t);
+    } else {
+      preview.drawFrame();
+    }
   });
 
   // Scrub bar: jump the shared preview timeline to any time — scheduled
@@ -316,6 +370,8 @@
       preview.clear(bucket);
     });
     PDC.episode.resetEpisode(episode, { title: "Episode 1" });
+    PDC.momentImages.releaseAll();
+    clearPreparedMomentImage();
 
     document.querySelectorAll("input[data-file-bucket]").forEach(function (input) { input.value = ""; });
     document.querySelectorAll("input[data-link-bucket]").forEach(function (input) { input.value = ""; });

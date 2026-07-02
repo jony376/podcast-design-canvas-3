@@ -216,7 +216,8 @@
       ctx.textBaseline = "middle";
       active.forEach(function (moment) {
         if (moment.type === "title") drawTitleMoment(moment, w, h);
-        else drawCalloutMoment(moment, w, h);
+        else if (moment.type === "callout") drawCalloutMoment(moment, w, h);
+        else drawImageMoment(moment, w, h);
       });
       ctx.restore();
     }
@@ -257,6 +258,30 @@
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "left";
       ctx.fillText(moment.text, barX + edgeW + padX, barY + barH / 2, maxTextW);
+    }
+
+    // B-roll image: a real uploaded PNG, decoded in app/moment-images.js and
+    // drawn as a large centered overlay. Export records this same canvas, so
+    // the image burns into the output whenever this draw path is active.
+    function drawImageMoment(moment, w, h) {
+      if (!PDC.momentImages) return;
+      const record = PDC.momentImages.get(moment.id);
+      if (!record || !record.image) return;
+      const img = record.image;
+      const maxW = Math.round(w * 0.56);
+      const maxH = Math.round(h * 0.52);
+      const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+      const dw = Math.round(img.naturalWidth * scale);
+      const dh = Math.round(img.naturalHeight * scale);
+      const x = Math.round((w - dw) / 2);
+      const y = Math.round(h * 0.18);
+      const pad = Math.max(10, Math.round(w * 0.012));
+      ctx.fillStyle = "rgba(5, 7, 12, 0.78)";
+      ctx.fillRect(x - pad, y - pad, dw + pad * 2, dh + pad * 2);
+      ctx.drawImage(img, x, y, dw, dh);
+      ctx.strokeStyle = "rgba(255,255,255,0.92)";
+      ctx.lineWidth = Math.max(3, Math.round(w * 0.003));
+      ctx.strokeRect(x - 1, y - 1, dw + 2, dh + 2);
     }
 
     function loop() {

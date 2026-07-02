@@ -9,8 +9,8 @@
 (function () {
   const PDC = (window.PDC = window.PDC || {});
 
-  const MOMENT_TYPES = ["title", "callout"];
-  const TYPE_LABELS = { title: "Episode title", callout: "Callout" };
+  const MOMENT_TYPES = ["title", "callout", "image"];
+  const TYPE_LABELS = { title: "Episode title", callout: "Callout", image: "B-roll image" };
   let seq = 0;
 
   function ensureMoments(episode) {
@@ -42,8 +42,12 @@
   // reason. start/end may be raw strings (seconds or M:SS) or numbers.
   function validateMoment(fields) {
     const f = fields || {};
-    if (!MOMENT_TYPES.includes(f.type)) return "Choose a moment type (title or callout).";
-    if (!String(f.text == null ? "" : f.text).trim()) return "Enter the text this moment should display.";
+    if (!MOMENT_TYPES.includes(f.type)) return "Choose a moment type (title, callout, or b-roll image).";
+    if (f.type === "image") {
+      if (!String(f.imageName == null ? "" : f.imageName).trim()) return "Upload a PNG image for this b-roll moment.";
+    } else if (!String(f.text == null ? "" : f.text).trim()) {
+      return "Enter the text this moment should display.";
+    }
     const start = parseTime(f.start);
     const end = parseTime(f.end);
     if (!Number.isFinite(start)) return "Enter a valid start time (seconds or M:SS).";
@@ -60,7 +64,8 @@
     const moment = {
       id: "moment-" + ++seq,
       type: fields.type,
-      text: String(fields.text).trim(),
+      text: fields.type === "image" ? "" : String(fields.text).trim(),
+      imageName: fields.type === "image" ? String(fields.imageName || "").trim() : "",
       start: parseTime(fields.start),
       end: parseTime(fields.end),
     };

@@ -35,11 +35,13 @@ test("formatTime renders M:SS", () => {
   assert.equal(M.formatTime(3.9), "0:03");
 });
 
-test("validateMoment requires a type, nonempty text, and 0 <= start < end", () => {
+test("validateMoment requires a type, content, and 0 <= start < end", () => {
   assert.equal(M.validateMoment({ type: "title", text: "EP", start: "0:00", end: "0:03" }), "");
   assert.equal(M.validateMoment({ type: "callout", text: "Ref", start: 4, end: 7 }), "");
+  assert.equal(M.validateMoment({ type: "image", imageName: "clip.png", start: 2, end: 5 }), "");
   assert.match(M.validateMoment({ type: "banner", text: "x", start: 0, end: 1 }), /type/i);
   assert.match(M.validateMoment({ type: "title", text: "   ", start: 0, end: 1 }), /text/i);
+  assert.match(M.validateMoment({ type: "image", start: 0, end: 1 }), /PNG image/i);
   assert.match(M.validateMoment({ type: "title", text: "x", start: "nope", end: 1 }), /start/i);
   assert.match(M.validateMoment({ type: "title", text: "x", start: 0, end: "nope" }), /end/i);
   assert.match(M.validateMoment({ type: "title", text: "x", start: 3, end: 3 }), /after/i);
@@ -56,6 +58,16 @@ test("addMoment stores valid moments on the episode and rejects invalid ones", (
   assert.equal(M.addMoment(ep, { type: "title", text: "", start: 0, end: 3 }), null);
   assert.equal(M.addMoment(ep, { type: "callout", text: "x", start: 7, end: 4 }), null);
   assert.equal(M.listMoments(ep).length, 1, "invalid moments must not be stored");
+});
+
+test("image moments store only PNG metadata, not image bytes", () => {
+  const ep = E.createEpisode({});
+  const image = M.addMoment(ep, { type: "image", imageName: "overlay.png", start: 2, end: 5 });
+  assert.ok(image && image.id);
+  assert.equal(image.type, "image");
+  assert.equal(image.imageName, "overlay.png");
+  assert.equal(image.text, "");
+  assert.equal(JSON.stringify(image).includes("data:image"), false);
 });
 
 test("listMoments returns moments ordered by start time", () => {
@@ -78,7 +90,9 @@ test("activeMoments is start-inclusive and end-exclusive", () => {
   const ep = E.createEpisode({});
   M.addMoment(ep, { type: "title", text: "EP TITLE", start: 0, end: 3 });
   M.addMoment(ep, { type: "callout", text: "CALLOUT REF", start: 4, end: 7 });
+  M.addMoment(ep, { type: "image", imageName: "overlay.png", start: 8, end: 10 });
   const texts = (t) => M.activeMoments(ep, t).map((m) => m.text);
+  const types = (t) => M.activeMoments(ep, t).map((m) => m.type);
   assert.deepEqual(texts(0), ["EP TITLE"], "start boundary is inclusive");
   assert.deepEqual(texts(1.5), ["EP TITLE"]);
   assert.deepEqual(texts(2.999), ["EP TITLE"]);
@@ -87,6 +101,8 @@ test("activeMoments is start-inclusive and end-exclusive", () => {
   assert.deepEqual(texts(4), ["CALLOUT REF"], "callout starts exactly at 4");
   assert.deepEqual(texts(5), ["CALLOUT REF"]);
   assert.deepEqual(texts(7), [], "callout gone at its end time");
+  assert.deepEqual(types(8), ["image"], "image moment starts exactly at 8");
+  assert.deepEqual(types(10), [], "image moment is gone at its end");
   assert.deepEqual(texts(-1), []);
   assert.deepEqual(texts(NaN), []);
 });
