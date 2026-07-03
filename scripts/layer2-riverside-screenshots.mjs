@@ -6,13 +6,19 @@
 // Usage:
 //   CHROME_BIN=... node scripts/layer2-riverside-screenshots.mjs
 // Output: review-screenshots/riverside-178/*.png + manifest.json
-import http from "node:http";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import {
+  startStaticServer,
+  enableProductUi,
+  fillInput,
+  clickElement,
+  waitForEvaluate,
+} from "./cdp-product-ui.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "review-screenshots", "riverside-178");
@@ -119,67 +125,8 @@ function buildRiversideLink(tracks) {
   return "https://riverside.fm/studio/share/local-sync#pdc-synced-tracks=" + encoded;
 }
 
-function startTrackServer(trackDir) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
-      const rel = urlPath.replace(/^\/+/, "");
-      const full = path.join(trackDir, rel);
-      if (!full.startsWith(trackDir)) {
-        res.writeHead(403).end("Forbidden");
-        return;
-      }
-      fs.readFile(full, (err, data) => {
-        if (err) {
-          res.writeHead(404, { "content-type": "text/plain" }).end("Not found");
-          return;
-        }
-        res.writeHead(200, { "content-type": "video/webm" });
-        res.end(data);
-      });
-    });
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      resolve({ server, port });
-    });
-  });
-}
-
-function startStaticServer() {
-  return new Promise((resolve, reject) => {
-    const types = {
-      ".html": "text/html; charset=utf-8",
-      ".css": "text/css; charset=utf-8",
-      ".js": "text/javascript; charset=utf-8",
-      ".mjs": "text/javascript; charset=utf-8",
-      ".json": "application/json; charset=utf-8",
-      ".png": "image/png",
-    };
-    const server = http.createServer((req, res) => {
-      const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
-      let rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
-      const full = path.join(root, rel);
-      if (!full.startsWith(root)) {
-        res.writeHead(403).end("Forbidden");
-        return;
-      }
-      fs.readFile(full, (err, data) => {
-        if (err) {
-          res.writeHead(404, { "content-type": "text/plain" }).end("Not found");
-          return;
-        }
-        res.writeHead(200, { "content-type": types[path.extname(full)] || "application/octet-stream" });
-        res.end(data);
-      });
-    });
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      resolve({ server, port });
-    });
-  });
+function dataTrackUrl(b64) {
+  return "data:video/webm;base64," + b64;
 }
 
 const generateVideosExpression = `
@@ -264,10 +211,7 @@ async function main() {
   const chrome = findChrome();
   fs.mkdirSync(outDir, { recursive: true });
 
-  const trackDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdc-layer2-tracks-"));
-  const { server: trackServer, port: trackPort } = await startTrackServer(trackDir);
-  const { server: appServer, port: appPort } = await startStaticServer();
-  const appUrl = `http://127.0.0.1:${appPort}/index.html`;
+  const { server: appServer, url: appUrl } = await startStaticServer(root);
 
   const cdpPort = await getFreePort();
   const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdc-layer2-riverside-"));
@@ -296,8 +240,8 @@ async function main() {
 
     const { ws, ready, send } = connectWebSocket(page.webSocketDebuggerUrl);
     await ready;
+    await enableProductUi(send);
     await send("Page.enable");
-    await send("Runtime.enable");
     await send("Emulation.setDeviceMetricsOverride", {
       width: 1280,
       height: 900,
@@ -320,34 +264,20 @@ async function main() {
       throw new Error(generated.exceptionDetails.exception?.description || generated.exceptionDetails.text);
     }
     const b64 = generated.result.value;
-    fs.writeFileSync(path.join(trackDir, "host.webm"), Buffer.from(b64.host, "base64"));
-    fs.writeFileSync(path.join(trackDir, "guest1.webm"), Buffer.from(b64.guest1, "base64"));
-    fs.writeFileSync(path.join(trackDir, "guest2.webm"), Buffer.from(b64.guest2, "base64"));
-
     const riversideLink = buildRiversideLink({
-      host: `http://127.0.0.1:${trackPort}/host.webm`,
-      guest1: `http://127.0.0.1:${trackPort}/guest1.webm`,
-      guest2: `http://127.0.0.1:${trackPort}/guest2.webm`,
+      host: dataTrackUrl(b64.host),
+      guest1: dataTrackUrl(b64.guest1),
+      guest2: dataTrackUrl(b64.guest2),
     });
 
     const steps = [
       { id: "02-link-pasted", run: async () => {
-        await send("Runtime.evaluate", {
-          expression: `(function(){ const i=document.querySelector("#riverside-link"); i.value=${JSON.stringify(riversideLink)}; i.dispatchEvent(new Event("input",{bubbles:true})); })()`,
-        });
+        await fillInput(send, "#riverside-link", riversideLink);
         await sleep(200);
       }},
       { id: "03-buckets-filled", run: async () => {
-        await send("Runtime.evaluate", { expression: `document.querySelector("#riverside-import-btn").click()` });
-        await sleep(50);
-        for (let i = 0; i < 120; i++) {
-          const n = await send("Runtime.evaluate", {
-            expression: `document.querySelectorAll(".bucket.filled").length`,
-            returnByValue: true,
-          });
-          if (n.result.value === 3) break;
-          await sleep(100);
-        }
+        await clickElement(send, "#riverside-import-btn");
+        await waitForEvaluate(send, `document.querySelectorAll(".bucket.filled").length === 3`, "import should fill buckets", 400);
         await sleep(400);
       }},
       { id: "04-split-preview", run: async () => {
@@ -366,26 +296,23 @@ async function main() {
         await ensurePreviewPlaying(send);
       }},
       { id: "07-bad-link-error", run: async () => {
-        await send("Runtime.evaluate", {
-          expression: `(function(){ const i=document.querySelector("#riverside-link"); i.value="https://example.com/not-a-riverside-link"; i.dispatchEvent(new Event("input",{bubbles:true})); document.querySelector("#riverside-import-btn").click(); })()`,
-        });
+        await fillInput(send, "#riverside-link", "https://example.com/not-a-riverside-link");
+        await clickElement(send, "#riverside-import-btn");
         await sleep(500);
       }},
       { id: "08-export-result", run: async () => {
-        await send("Runtime.evaluate", { expression: `document.querySelector("#export").click()` });
-        for (let i = 0; i < 200; i++) {
-          const ok = await send("Runtime.evaluate", {
-            expression: `(() => {
-              const link = document.querySelector("#export-download");
-              const playback = document.querySelector("#export-playback");
-              const txt = (document.querySelector("#export-result") || {}).textContent || "";
-              return !!(link && playback && playback.readyState >= 1 && playback.videoWidth > 0 && !/— 0 KB/.test(txt));
-            })()`,
-            returnByValue: true,
-          });
-          if (ok.result.value) break;
-          await sleep(100);
-        }
+        await clickElement(send, "#export");
+        await waitForEvaluate(
+          send,
+          `(() => {
+            const link = document.querySelector("#export-download");
+            const playback = document.querySelector("#export-playback");
+            const txt = (document.querySelector("#export-result") || {}).textContent || "";
+            return !!(link && playback && playback.readyState >= 1 && playback.videoWidth > 0 && !/— 0 KB/.test(txt));
+          })()`,
+          "export should finish",
+          200,
+        );
         await sleep(400);
       }},
     ];
@@ -416,7 +343,7 @@ async function main() {
       returnByValue: true,
     });
     manifest.summary = summary.result.value;
-    manifest.riversideLink = riversideLink;
+    manifest.riversideLink = riversideLink.slice(0, 120) + "…";
 
     fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
     ws.close();
@@ -429,8 +356,6 @@ async function main() {
   } finally {
     await stopChrome(child);
     await removeDirEventually(profileDir);
-    await removeDirEventually(trackDir);
-    trackServer.close();
     appServer.close();
   }
 }

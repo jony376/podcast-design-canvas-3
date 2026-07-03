@@ -1,19 +1,20 @@
 // scripts/verify-riverside-import.mjs
-// Drives the shipped app in headless Chrome and proves issue #178 end to end:
-// generate three local WebM speaker tracks, serve them over a maintainer-owned
-// http://127.0.0.1 track server, build a Riverside-style share link that encodes
-// those track URLs, paste it into the real import field, confirm Host / Guest 1 /
-// Guest 2 buckets populate with playable blob-backed media, the composed preview
-// renders all three tracks across Split / Stack / Spotlight, export produces a
-// genuinely playable video, and an unsupported link shows a visible error without
-// wiping the imported setup.
-import http from "node:http";
+// Drives the shipped app over http:// through the real import controls (CDP
+// fill + click, not injected input values), using a self-contained Riverside
+// link whose tracks are data:video/webm URLs — no separate track server.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import {
+  startStaticServer,
+  enableProductUi,
+  fillInput,
+  clickElement,
+  waitForEvaluate,
+} from "./cdp-product-ui.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -131,32 +132,8 @@ function buildRiversideLink(tracks) {
   return "https://riverside.fm/studio/share/local-sync#pdc-synced-tracks=" + encoded;
 }
 
-function startTrackServer(trackDir) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
-      const rel = urlPath.replace(/^\/+/, "");
-      const full = path.join(trackDir, rel);
-      if (!full.startsWith(trackDir)) {
-        res.writeHead(403).end("Forbidden");
-        return;
-      }
-      fs.readFile(full, (err, data) => {
-        if (err) {
-          res.writeHead(404, { "content-type": "text/plain" }).end("Not found");
-          return;
-        }
-        res.writeHead(200, { "content-type": "video/webm" });
-        res.end(data);
-      });
-    });
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      resolve({ server, port });
-    });
-  });
+function dataTrackUrl(b64) {
+  return "data:video/webm;base64," + b64;
 }
 
 const generateVideosExpression = `
@@ -175,7 +152,7 @@ const generateVideosExpression = `
     const chunks = [];
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     recorder.start();
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < 16; i++) {
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, 320, 180);
       ctx.fillStyle = "#ffffff";
@@ -208,19 +185,15 @@ const generateVideosExpression = `
 })()
 `;
 
-function browserExpression(riversideLink) {
+function assertionExpression() {
   return `
 (async () => {
-  const RIVERSIDE_LINK = ${JSON.stringify(riversideLink)};
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const assert = (c, m) => { if (!c) throw new Error(m); };
   const waitFor = async (fn, label, tries) => {
     for (let i = 0; i < (tries || 200); i++) { if (fn()) return; await sleep(50); }
     throw new Error(label);
   };
-  const typeInto = (input, v) => { input.value = v; input.dispatchEvent(new Event("input", { bubbles: true })); };
-
-  await waitFor(() => window.PDC && window.PDC.riverside && document.querySelector("#riverside-link"), "Riverside import controls should exist");
 
   function regionAvgColor(xStartPct, yStartPct, xEndPct, yEndPct) {
     const c = document.getElementById("stage-canvas");
@@ -289,11 +262,6 @@ function browserExpression(riversideLink) {
     await sleep(500);
   }
 
-  typeInto(document.querySelector("#riverside-link"), RIVERSIDE_LINK);
-  document.querySelector("#riverside-import-btn").click();
-  await waitFor(() => document.querySelectorAll(".bucket.filled").length === 3, "Riverside import should fill Host, Guest 1, and Guest 2");
-  await waitFor(() => !document.querySelector("#export").disabled, "export should be enabled after Riverside import");
-
   const hostStatus = document.querySelector('[data-status="host"]');
   const guest1Status = document.querySelector('[data-status="guest1"]');
   const guest2Status = document.querySelector('[data-status="guest2"]');
@@ -317,15 +285,31 @@ function browserExpression(riversideLink) {
   assertCanvasVisible("spotlight preset");
   assertRegionColor("spotlight center", 25, 25, 75, 75, "red");
 
+  return {
+    filledBuckets: [...document.querySelectorAll(".bucket.filled")].map((b) => b.dataset.bucket),
+    hostFile: hostStatus.textContent,
+  };
+})()
+`;
+}
+
+function afterBadLinkExpression() {
+  return `
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const assert = (c, m) => { if (!c) throw new Error(m); };
+  const waitFor = async (fn, label, tries) => {
+    for (let i = 0; i < (tries || 200); i++) { if (fn()) return; await sleep(50); }
+    throw new Error(label);
+  };
+
+  const hostStatus = document.querySelector('[data-status="host"]');
   const setupBeforeBad = {
     filled: document.querySelectorAll(".bucket.filled").length,
     host: hostStatus.textContent,
     exportReady: !document.querySelector("#export").disabled,
   };
 
-  typeInto(document.querySelector("#riverside-link"), "https://example.com/not-a-riverside-link");
-  document.querySelector("#riverside-import-btn").click();
-  await sleep(300);
   const errEl = document.querySelector("#riverside-error");
   assert(errEl && !errEl.hidden && errEl.textContent.length > 0, "unsupported link should show a visible error");
   assert(document.querySelectorAll(".bucket.filled").length === setupBeforeBad.filled, "bad import must not wipe filled buckets");
@@ -380,7 +364,6 @@ function browserExpression(riversideLink) {
   if (!exportInfo) throw lastErr || new Error("export failed after retries");
 
   return {
-    filledBuckets: [...document.querySelectorAll(".bucket.filled")].map((b) => b.dataset.bucket),
     exportBytes: exportInfo.bytes,
     exportDimensions: exportInfo.dimensions,
     badLinkError: errEl.textContent,
@@ -392,17 +375,14 @@ function browserExpression(riversideLink) {
 async function main() {
   const chrome = findChrome();
   const cdpPort = await getFreePort();
-  const trackDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdc-riverside-tracks-"));
-  const { server: trackServer, port: trackPort } = await startTrackServer(trackDir);
+  const { server: appServer, url: entryUrl } = await startStaticServer(root);
   const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdc-riverside-import-"));
-  const entryUrl = pathToFileURL(path.join(root, "index.html")).href;
 
   const child = spawn(chrome, [
     "--headless=new",
     "--no-sandbox",
     "--disable-gpu",
     "--autoplay-policy=no-user-gesture-required",
-    "--allow-file-access-from-files",
     `--remote-debugging-port=${cdpPort}`,
     `--user-data-dir=${profileDir}`,
     entryUrl,
@@ -415,7 +395,13 @@ async function main() {
 
     const { ws, ready, send } = connectWebSocket(page.webSocketDebuggerUrl);
     await ready;
-    await send("Runtime.enable");
+    await enableProductUi(send);
+
+    await waitForEvaluate(
+      send,
+      `!!(window.PDC && window.PDC.riverside && document.querySelector("#riverside-link"))`,
+      "Riverside import controls should exist",
+    );
 
     const generated = await send("Runtime.evaluate", {
       expression: generateVideosExpression,
@@ -428,35 +414,59 @@ async function main() {
     }
 
     const b64 = generated.result.value;
-    fs.writeFileSync(path.join(trackDir, "host.webm"), Buffer.from(b64.host, "base64"));
-    fs.writeFileSync(path.join(trackDir, "guest1.webm"), Buffer.from(b64.guest1, "base64"));
-    fs.writeFileSync(path.join(trackDir, "guest2.webm"), Buffer.from(b64.guest2, "base64"));
-
     const riversideLink = buildRiversideLink({
-      host: `http://127.0.0.1:${trackPort}/host.webm`,
-      guest1: `http://127.0.0.1:${trackPort}/guest1.webm`,
-      guest2: `http://127.0.0.1:${trackPort}/guest2.webm`,
+      host: dataTrackUrl(b64.host),
+      guest1: dataTrackUrl(b64.guest1),
+      guest2: dataTrackUrl(b64.guest2),
     });
 
-    const result = await send("Runtime.evaluate", {
-      expression: browserExpression(riversideLink),
+    await fillInput(send, "#riverside-link", riversideLink);
+    await clickElement(send, "#riverside-import-btn");
+    await waitForEvaluate(
+      send,
+      `document.querySelectorAll(".bucket.filled").length === 3`,
+      "Riverside import should fill Host, Guest 1, and Guest 2 through the real controls",
+      400,
+    );
+    await waitForEvaluate(
+      send,
+      `!document.querySelector("#export").disabled`,
+      "export should be enabled after Riverside import",
+      200,
+    );
+
+    const mid = await send("Runtime.evaluate", {
+      expression: assertionExpression(),
       awaitPromise: true,
       returnByValue: true,
       timeout: 60000,
     });
+    if (mid.exceptionDetails) {
+      throw new Error(mid.exceptionDetails.exception?.description || mid.exceptionDetails.text);
+    }
+
+    await fillInput(send, "#riverside-link", "https://example.com/not-a-riverside-link");
+    await clickElement(send, "#riverside-import-btn");
+    await sleep(400);
+
+    const tail = await send("Runtime.evaluate", {
+      expression: afterBadLinkExpression(),
+      awaitPromise: true,
+      returnByValue: true,
+      timeout: 90000,
+    });
     ws.close();
 
-    if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+    if (tail.exceptionDetails) {
+      throw new Error(tail.exceptionDetails.exception?.description || tail.exceptionDetails.text);
     }
 
     console.log("verify-riverside-import: OK");
-    console.log(JSON.stringify(result.result.value, null, 2));
+    console.log(JSON.stringify({ ...mid.result.value, ...tail.result.value }, null, 2));
   } finally {
     await stopChrome(child);
     await removeDirEventually(profileDir);
-    await removeDirEventually(trackDir);
-    trackServer.close();
+    appServer.close();
   }
 }
 

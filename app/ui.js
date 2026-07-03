@@ -98,11 +98,20 @@
   function setRiversideStatus(message) {
     $("riverside-status").textContent = message || "";
   }
+  function trackFileName(url, label) {
+    const text = String(url || "");
+    if (text.startsWith("data:")) {
+      const slug = String(label || "track").toLowerCase().replace(/\s+/g, "");
+      return /\.[a-z0-9]+$/i.test(slug) ? slug : slug + ".webm";
+    }
+    const tail = (text.split("/").pop() || "").split("?")[0];
+    return tail || String(label || "track").toLowerCase().replace(/\s+/g, "") + ".webm";
+  }
   async function fileFromTrackUrl(url, label) {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error("Could not download the " + label + " track.");
     const blob = await resp.blob();
-    const name = (url.split("/").pop() || "").split("?")[0] || label.toLowerCase().replace(/\s+/g, "") + ".webm";
+    const name = trackFileName(url, label);
     return new File([blob], name, { type: blob.type || "video/webm" });
   }
   $("riverside-import-btn").addEventListener("click", async function () {

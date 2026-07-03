@@ -51,6 +51,26 @@ test("parseRiversideLink requires host and guest1 track URLs", () => {
   assert.match(bad.error, /Host and Guest 1/i);
 });
 
+test("parseRiversideLink accepts embedded data:video/webm track URLs", () => {
+  const dataTracks = {
+    host: "data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECG",
+    guest1: "data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECH",
+    guest2: "data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECI",
+  };
+  const link = R.buildRiversideLink(dataTracks);
+  const parsed = R.parseRiversideLink(link);
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.tracks, dataTracks);
+});
+
+test("isTrackUrl accepts http(s) and data:video URLs", () => {
+  assert.equal(R.isTrackUrl("http://127.0.0.1/host.webm"), true);
+  assert.equal(R.isTrackUrl("https://cdn.example/host.webm"), true);
+  assert.equal(R.isTrackUrl("data:video/webm;base64,abc"), true);
+  assert.equal(R.isTrackUrl("data:text/plain,hi"), false);
+  assert.equal(R.isTrackUrl("ftp://x/y"), false);
+});
+
 test("isRiversideHost accepts riverside.fm and subdomains", () => {
   assert.equal(R.isRiversideHost("https://riverside.fm/foo"), true);
   assert.equal(R.isRiversideHost("https://studio.riverside.fm/foo"), true);

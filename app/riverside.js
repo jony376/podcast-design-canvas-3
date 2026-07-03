@@ -1,8 +1,8 @@
 // app/riverside.js
 // Pure Riverside-style share link parser: extracts synced speaker track URLs from a
 // share link fragment without any network or account access. The fragment format is
-// intentionally self-contained so maintainer-owned local test links can reference
-// http(s) track URLs observable in the headless verification harness.
+// http(s) or data:video/* track URLs embedded in the share-link fragment — no
+// external Riverside API, account sign-in, or separate track server required.
 (function () {
   const PDC = (window.PDC = window.PDC || {});
   const { SPEAKER_BUCKETS } = PDC.presets;
@@ -29,9 +29,15 @@
     }
   }
 
-  function isHttpTrackUrl(raw) {
+  function isTrackUrl(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return false;
+    if (text.startsWith("data:")) {
+      const mime = text.slice(5, text.indexOf(",")).split(";")[0].toLowerCase();
+      return mime === "video/webm" || mime === "video/mp4" || mime.startsWith("video/");
+    }
     try {
-      const u = new URL(String(raw || "").trim());
+      const u = new URL(text);
       return u.protocol === "http:" || u.protocol === "https:";
     } catch (e) {
       return false;
@@ -77,8 +83,8 @@
       const bucket = SPEAKER_BUCKETS[i];
       const url = String(tracksIn[bucket] || "").trim();
       if (!url) continue;
-      if (!isHttpTrackUrl(url)) {
-        return { ok: false, error: "Speaker track URL for " + bucket + " is not a valid http(s) address." };
+      if (!isTrackUrl(url)) {
+        return { ok: false, error: "Speaker track URL for " + bucket + " is not a valid track address." };
       }
       tracks[bucket] = url;
     }
@@ -104,6 +110,7 @@
   PDC.riverside = {
     FRAGMENT_KEY: FRAGMENT_KEY,
     isRiversideHost: isRiversideHost,
+    isTrackUrl: isTrackUrl,
     parseRiversideLink: parseRiversideLink,
     buildRiversideLink: buildRiversideLink,
   };
