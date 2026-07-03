@@ -17,7 +17,19 @@
     <main class="layout">
       <section class="panel setup" aria-label="Episode setup">
         <h2 class="step-title"><span class="num">1</span> Upload speaker videos</h2>
-        <p class="hint">Upload a local video for each speaker and add a social link so derived names appear in the preview. Add at least Host and Guest 1.</p>
+        <p class="hint">Upload a local video for each speaker, import a Riverside share link with synced tracks, and add a social link so derived names appear in the preview. Add at least Host and Guest 1.</p>
+
+        <div class="riverside-import" id="riverside-import">
+          <p class="riverside-import-title">Import from a Riverside share link</p>
+          <p class="hint">Paste a Riverside-style episode link that includes synced Host, Guest 1, and Guest 2 track URLs — no account sign-in required for links that already expose downloadable tracks.</p>
+          <label class="riverside-link-field">
+            <span>Riverside episode link</span>
+            <input id="riverside-link" type="url" placeholder="https://riverside.fm/studio/share/…" autocomplete="off" aria-label="Riverside episode share link" />
+          </label>
+          <button id="riverside-import-btn" type="button">Import tracks</button>
+          <p class="riverside-status" id="riverside-status" aria-live="polite"></p>
+          <p class="riverside-error" id="riverside-error" role="alert" hidden></p>
+        </div>
 
         <!-- Static bucket controls (never re-created by JS) so automated review can
              attach files and type social links through the normal product workflow. -->
@@ -175,6 +187,7 @@
 
     <script src="app/presets.js"></script>
     <script src="app/episode.js"></script>
+    <script src="app/riverside.js"></script>
     <script src="app/moments.js"></script>
     <script src="app/moment-images.js"></script>
     <script src="app/captions.js"></script>

@@ -11,9 +11,11 @@ import vm from "node:vm";
 // `extra` can seed properties (e.g. a mock `localStorage`) onto the fresh
 // `window` before the modules run, so a test can simulate the SAME storage
 // surviving across two otherwise-independent loadPDC() calls (a "reload").
-export function loadPDC(root, extra) {
-  globalThis.window = Object.assign({}, extra); // fresh namespace per load
-  for (const file of ["app/presets.js", "app/episode.js", "app/moments.js", "app/captions.js", "app/templates.js"]) {
+export function loadPDC(root, extra, extraFiles) {
+  globalThis.window = Object.assign({}, extra);
+  const files = ["app/presets.js", "app/episode.js", "app/moments.js", "app/captions.js", "app/templates.js"];
+  if (extraFiles) files.push(...extraFiles);
+  for (const file of files) {
     const code = fs.readFileSync(path.join(root, file), "utf8");
     vm.runInThisContext(code, { filename: file });
   }

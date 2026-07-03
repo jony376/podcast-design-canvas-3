@@ -124,6 +124,50 @@ body {
 
 /* Speaker buckets --------------------------------------------------------- */
 .buckets { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* Riverside link import --------------------------------------------------- */
+.riverside-import {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(108, 140, 255, 0.06);
+}
+.riverside-import-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+.riverside-link-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.riverside-link-field span { min-width: 122px; color: var(--muted); font-size: 13px; }
+.riverside-link-field input[type="url"] {
+  flex: 1;
+  min-width: 200px;
+  background: #10131d;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 13px;
+}
+#riverside-import-btn {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(108, 140, 255, 0.17);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+#riverside-import-btn:hover { background: rgba(108, 140, 255, 0.3); }
+#riverside-import-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.riverside-status { color: var(--ok); font-size: 12px; margin: 6px 0 0; min-height: 14px; }
+.riverside-error { color: #ff8b8b; font-size: 12px; margin: 6px 0 0; min-height: 14px; }
+.riverside-error[hidden] { display: none; }
+
 .bucket {
   display: flex;
   align-items: center;

@@ -14,6 +14,7 @@
     { "name": "template-apply", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-template-apply.mjs" },
     { "name": "captions", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-captions.mjs" },
     { "name": "title-callout-moments", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-title-callout-moments.mjs" },
-    { "name": "caption-name-correction", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-caption-name-correction.mjs" }
+    { "name": "caption-name-correction", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-caption-name-correction.mjs" },
+    { "name": "riverside-import", "run": "CHROME_BIN=\"${CHROME_BIN:-$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)}\" node scripts/verify-riverside-import.mjs" }
   ]
 }

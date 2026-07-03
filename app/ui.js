@@ -85,6 +85,60 @@
     });
   });
 
+  // Riverside link import: fetch synced speaker track URLs encoded in a share
+  // link fragment, then populate Host / Guest 1 / Guest 2 through the same ingest
+  // path as manual uploads. Invalid links show a recoverable error and never
+  // change existing episode setup; tracks are fetched before any bucket updates.
+  const RV = PDC.riverside;
+  function showRiversideError(message) {
+    const el = $("riverside-error");
+    el.textContent = message || "";
+    el.hidden = !message;
+  }
+  function setRiversideStatus(message) {
+    $("riverside-status").textContent = message || "";
+  }
+  async function fileFromTrackUrl(url, label) {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("Could not download the " + label + " track.");
+    const blob = await resp.blob();
+    const name = (url.split("/").pop() || "").split("?")[0] || label.toLowerCase().replace(/\s+/g, "") + ".webm";
+    return new File([blob], name, { type: blob.type || "video/webm" });
+  }
+  $("riverside-import-btn").addEventListener("click", async function () {
+    const parsed = RV.parseRiversideLink($("riverside-link").value);
+    if (!parsed.ok) {
+      showRiversideError(parsed.error);
+      setRiversideStatus("");
+      return;
+    }
+    const buckets = Object.keys(parsed.tracks);
+    showRiversideError("");
+    setRiversideStatus("Fetching " + buckets.length + " speaker track" + (buckets.length === 1 ? "" : "s") + "…");
+    const btn = $("riverside-import-btn");
+    btn.disabled = true;
+    try {
+      const files = {};
+      for (let i = 0; i < buckets.length; i++) {
+        const bucket = buckets[i];
+        const file = await fileFromTrackUrl(parsed.tracks[bucket], BUCKET_LABELS[bucket] || bucket);
+        if (!isVideoFile(file)) throw new Error("The " + (BUCKET_LABELS[bucket] || bucket) + " track is not a video file.");
+        files[bucket] = file;
+      }
+      buckets.forEach(function (bucket) {
+        ingestFile(bucket, files[bucket]);
+      });
+      if (parsed.title) episode.title = parsed.title;
+      setRiversideStatus("Imported " + buckets.length + " speaker track" + (buckets.length === 1 ? "" : "s") + " from Riverside link.");
+      afterMediaChange();
+    } catch (err) {
+      showRiversideError((err && err.message) || "Could not import tracks from that Riverside link.");
+      setRiversideStatus("");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // Timed visual moments: type + text + start/end times, listed with remove
   // controls. Moments live on the episode model, so they survive preset and
   // template switches; the preview draws whichever are active each frame.
@@ -459,6 +513,9 @@
     $("caption-text").value = "";
     setCaptionStatus("");
     showCaptionError("");
+    $("riverside-link").value = "";
+    setRiversideStatus("");
+    showRiversideError("");
     renderMomentList();
 
     $("export-progress").hidden = true;
