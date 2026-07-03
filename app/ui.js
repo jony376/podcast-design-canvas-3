@@ -114,6 +114,33 @@
     const name = trackFileName(url, label);
     return new File([blob], name, { type: blob.type || "video/webm" });
   }
+  function waitForBucketVideo(bucket) {
+    return new Promise(function (resolve) {
+      const v = document.querySelector('video[data-speaker="' + bucket + '"]');
+      if (!v) {
+        resolve();
+        return;
+      }
+      let done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        clearTimeout(t);
+        v.removeEventListener("loadeddata", onReady);
+        v.removeEventListener("canplay", onReady);
+        resolve();
+      }
+      function onReady() {
+        if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && v.videoWidth > 0) finish();
+      }
+      onReady();
+      v.addEventListener("loadeddata", onReady);
+      v.addEventListener("canplay", onReady);
+      const p = v.play();
+      if (p && typeof p.catch === "function") p.catch(function () {});
+      const t = setTimeout(finish, 30000);
+    });
+  }
   $("riverside-import-btn").addEventListener("click", async function () {
     const parsed = RV.parseRiversideLink($("riverside-link").value);
     if (!parsed.ok) {
@@ -138,6 +165,10 @@
         ingestFile(bucket, files[bucket]);
       });
       if (parsed.title) episode.title = parsed.title;
+      setRiversideStatus("Preparing preview…");
+      await Promise.all(buckets.map(waitForBucketVideo));
+      preview.render(episode);
+      preview.drawFrame();
       setRiversideStatus("Imported " + buckets.length + " speaker track" + (buckets.length === 1 ? "" : "s") + " from Riverside link.");
       afterMediaChange();
     } catch (err) {
