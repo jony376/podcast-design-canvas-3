@@ -11,6 +11,7 @@
     "preview-build": "node scripts/preview-build.mjs",
     "verify:rendered": "node scripts/verify-rendered-preview.mjs",
     "verify:social": "node scripts/verify-social-context.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "layer2-riverside": "node scripts/layer2-riverside-screenshots.mjs"
   }
 }

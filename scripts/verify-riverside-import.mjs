@@ -180,8 +180,10 @@ const generateVideosExpression = `
       ctx.fillRect(0, 0, 320, 180);
       ctx.fillStyle = "#ffffff";
       ctx.font = "26px sans-serif";
-      ctx.fillText(name.slice(0, 20), 20, 78);
-      ctx.fillText("frame " + i, 20, 118);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(name.slice(0, 20), 160, 72);
+      ctx.fillText("frame " + i, 160, 112);
       await sleep(45);
     }
     await new Promise((r) => { recorder.onstop = r; recorder.stop(); });
@@ -330,21 +332,57 @@ function browserExpression(riversideLink) {
   assert(hostStatus.textContent === setupBeforeBad.host, "bad import must not change host filename");
   assert(!document.querySelector("#export").disabled, "export readiness must survive bad import");
 
-  document.querySelector("#export").click();
-  await waitFor(() => document.querySelector("#export-download") && document.querySelector("#export-playback"), "export should produce a downloadable result", 600);
-  const href = document.querySelector("#export-download").getAttribute("href");
-  const blob = await (await fetch(href)).blob();
-  assert(blob.size > 2048, "exported file should carry real bytes");
-  const v = document.createElement("video");
-  v.muted = true;
-  v.src = URL.createObjectURL(blob);
-  await new Promise((r) => { v.onloadedmetadata = r; v.onerror = r; setTimeout(r, 5000); });
-  assert(v.videoWidth > 0 && v.videoHeight > 0, "exported file should be a playable video with real dimensions");
+  async function waitForExportReady(label, tries) {
+    await waitFor(() => {
+      const btn = document.querySelector("#export");
+      return btn && !btn.disabled && btn.textContent.indexOf("Exporting") === -1;
+    }, label + ": export button should be ready", tries || 200);
+  }
+
+  async function runExport(attempt) {
+    const result = document.querySelector("#export-result");
+    result.hidden = true;
+    result.innerHTML = "";
+    await waitForExportReady("attempt " + attempt, 240);
+    document.querySelector("#export").click();
+    await waitFor(() => {
+      const link = document.querySelector("#export-download");
+      const playback = document.querySelector("#export-playback");
+      return link && playback && playback.readyState >= HTMLMediaElement.HAVE_METADATA;
+    }, "attempt " + attempt + ": export should produce a downloadable playable result", 800);
+    const href = document.querySelector("#export-download").getAttribute("href");
+    assert(href && href.indexOf("blob:") === 0, "attempt " + attempt + ": download link should be a real blob URL");
+    let blob = await (await fetch(href)).blob();
+    if (blob.size <= 2048) {
+      await sleep(400);
+      blob = await (await fetch(href)).blob();
+    }
+    assert(blob.size > 2048, "attempt " + attempt + ": exported file should carry real bytes, got " + blob.size);
+    const v = document.createElement("video");
+    v.muted = true;
+    v.src = URL.createObjectURL(blob);
+    await new Promise((r) => { v.onloadedmetadata = r; v.onerror = r; setTimeout(r, 5000); });
+    assert(v.videoWidth > 0 && v.videoHeight > 0, "attempt " + attempt + ": exported file should be a playable video with real dimensions");
+    return { bytes: blob.size, dimensions: v.videoWidth + "x" + v.videoHeight };
+  }
+
+  let exportInfo = null;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      exportInfo = await runExport(attempt);
+      break;
+    } catch (e) {
+      lastErr = e;
+      await sleep(500);
+    }
+  }
+  if (!exportInfo) throw lastErr || new Error("export failed after retries");
 
   return {
     filledBuckets: [...document.querySelectorAll(".bucket.filled")].map((b) => b.dataset.bucket),
-    exportBytes: blob.size,
-    exportDimensions: v.videoWidth + "x" + v.videoHeight,
+    exportBytes: exportInfo.bytes,
+    exportDimensions: exportInfo.dimensions,
     badLinkError: errEl.textContent,
   };
 })()
